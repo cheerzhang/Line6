@@ -1,0 +1,19 @@
+# Line6 local tools (do not upload your API key)
+line6_fetcher.py
+requirements.txt
+
+*.pyc
+__pycache__/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Python venv
+.venv/
+env/
+venv/
+
+# Data cache (optional – keep only JSON for pages)
+data/*.csv
+# data/*.json  # 如果你不想上传 JSON，也可以取消这一行注释
