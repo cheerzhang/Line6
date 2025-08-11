@@ -8,13 +8,13 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
-      --bg: #0b0d10;
-      --fg: #e8eef5;
-      --muted: #92a2b3;
-      --card: #13161b;
-      --border: #222832;
-      --accent: #7cc4ff;
-      --up: #f97316;
+      --bg: #ffffff;
+      --fg: #000000;
+      --muted: #555555;
+      --card: #f9f9f9;
+      --border: #dddddd;
+      --accent: #2563eb;
+      --up: #22c55e;
       --down: #ef4444;
     }
     html, body { height: 100%; }
@@ -30,7 +30,7 @@
     .row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
     .sym { font-weight: 600; letter-spacing: .5px; }
     .muted { color: var(--muted); }
-    .pill { padding: 2px 8px; border-radius: 999px; background: #0f1a24; color: var(--accent); border: 1px solid var(--border); }
+    .pill { padding: 2px 8px; border-radius: 999px; background: #eee; color: var(--accent); border: 1px solid var(--border); }
     .footer { color: var(--muted); margin-top: 18px; font-size: 12px; }
     .legend { display:flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; }
     .legend span { display:inline-flex; align-items:center; gap:6px; }
@@ -38,24 +38,19 @@
     .tiny { font-size: 12px; }
     canvas { width: 100% !important; height: 280px !important; }
     .mini { display:flex; gap:10px; color:var(--muted); }
-  .summary { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 10px; }
-.kpi { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
-.kpi small { display:flex; align-items:center; gap:6px; color: var(--muted); }
-.kpi b { font-size: 14px; }
-hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7; }
-</style>
+    .summary { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 10px; }
+    .kpi { background: rgba(0,0,0,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+    .kpi small { display:flex; align-items:center; gap:6px; color: var(--muted); }
+    .kpi b { font-size: 14px; }
+    hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7; }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Line6</h1>
     <div class="sub">用 6 条水平线（3年/1年/6个月 的最高/最低） + 收盘价曲线，快速判断当前价格所处区间。数据来源：你仓库里的 <code>data/*.json</code> 静态文件。</div>
-
-    <div class="tiny muted" style="margin: 8px 0 16px;">
-      编辑下方配置中的 <code>symbols</code> 数组以及 <code>dataDir</code> 路径，把对应 JSON 放到仓库里即可。JSON 结构见页面底部注释。
-    </div>
-
+    <div class="tiny muted" style="margin: 8px 0 16px;">编辑下方配置中的 <code>symbols</code> 数组以及 <code>dataDir</code> 路径，把对应 JSON 放到仓库里即可。JSON 结构见页面底部注释。</div>
     <div id="cards" class="grid"></div>
-
     <div class="footer">
       📌 说明：
       <ul>
@@ -67,28 +62,20 @@ hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7
   </div>
 
   <script>
-    // === 配置区 ===
-    const dataDir = 'data'; // 静态 JSON 放置目录，如 data/AAPL.json
-    const symbols = ['AAPL', 'MSFT']; // 你要展示的股票代码（与 JSON 文件名一致）
-
-    // === 工具函数 ===
+    const dataDir = 'data';
+    const symbols = ['AAPL', 'MSFT'];
     const parseDate = (s) => new Date(s + 'T00:00:00');
     const fmt = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(2));
-
-    // 计算窗口内的最高/最低（这里用 close，你也可以改用 high/low）
     function windowExtrema(rows, fromDate) {
       const w = rows.filter(r => parseDate(r.date) >= fromDate);
       if (w.length === 0) return { max: null, min: null };
       let mx = -Infinity, mn = Infinity;
       for (const r of w) {
-        // 用收盘价做区间判断；若想用日内最高/最低，把 r.close 改为 r.high / r.low
         if (r.close > mx) mx = r.close;
         if (r.close < mn) mn = r.close;
       }
       return { max: mx, min: mn };
     }
-
-    // 生成水平线数据集（y = 常数）
     function flatLine(label, y, xLabels, style={}) {
       const data = xLabels.map(() => y);
       return Object.assign({
@@ -100,17 +87,14 @@ hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7
         fill: false,
       }, style);
     }
-
-    function pct(a, b) { // 当前价相对区间的百分位（简单计算）
+    function pct(a, b) {
       if (a == null || b == null) return null;
       return ((a - b.min) / (b.max - b.min)) * 100;
     }
-
     async function loadJSON(sym) {
       const res = await fetch(`${dataDir}/${sym}.json`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`${sym} 数据文件读取失败`);
       const raw = await res.json();
-      // 期望数据按日期升序；若不是，则排序
       raw.sort((a,b) => a.date.localeCompare(b.date));
       return raw.map(r => ({
         date: r.date,
@@ -120,9 +104,7 @@ hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7
         close: +r.close,
       }));
     }
-
     function last(arr) { return arr[arr.length - 1]; }
-
     function makeCard(sym) {
       const el = document.createElement('div');
       el.className = 'card';
@@ -136,41 +118,30 @@ hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7
         </div>
         <canvas id="chart-${sym}"></canvas>
         <div class="legend tiny" id="legend-${sym}"></div>
-<hr class="div"/>
-<div class="summary tiny" id="${sym}-summary"></div>
+        <hr class="div"/>
+        <div class="summary tiny" id="${sym}-summary"></div>
       `;
       return el;
     }
-
     function legendColorBox(color, text) {
       return `<span><i class="dot" style="background:${color}"></i>${text}</span>`;
     }
-
     async function renderSymbol(sym) {
       const card = makeCard(sym);
       document.getElementById('cards').appendChild(card);
-
       try {
         const rows = await loadJSON(sym);
         if (!rows.length) throw new Error('无数据');
-
         const latest = last(rows);
         const latestDate = parseDate(latest.date);
-
-        // 计算时间窗口
         const d6m = new Date(latestDate); d6m.setMonth(d6m.getMonth() - 6);
         const d1y = new Date(latestDate); d1y.setFullYear(d1y.getFullYear() - 1);
         const d3y = new Date(latestDate); d3y.setFullYear(d3y.getFullYear() - 3);
-
         const e6m = windowExtrema(rows, d6m);
         const e1y = windowExtrema(rows, d1y);
         const e3y = windowExtrema(rows, d3y);
-
-        // X 轴标签与主折线数据（收盘）
         const labels = rows.map(r => r.date);
         const closes = rows.map(r => r.close);
-
-        // 计算当前价位于 1Y 区间的百分位（也可换成 6M/3Y）
         const p1y = pct(latest.close, e1y);
         const posEl = document.getElementById(`${sym}-pos`);
         if (p1y != null && isFinite(p1y)) {
@@ -180,67 +151,28 @@ hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7
           posEl.textContent = '1Y区间百分位：—';
         }
         document.getElementById(`${sym}-last`).textContent = `${fmt(latest.close)} (${latest.date})`;
-
-        // 主题色
-        const closeColor = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#7cc4ff';
-
+        const closeColor = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#2563eb';
         const ds = [
-          // 主折线：收盘
-          {
-            label: '收盘价',
-            data: closes,
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.25,
-          },
-          // 水平线：3Y/1Y/6M High/Low
+          { label: '收盘价', data: closes, borderWidth: 2, pointRadius: 0, tension: 0.25 },
           flatLine('3Y High', e3y.max, labels, { borderDash: [], borderWidth: 1, borderColor: '#eab308' }),
           flatLine('3Y Low',  e3y.min, labels, { borderDash: [6,4], borderColor: '#eab308' }),
-
           flatLine('1Y High', e1y.max, labels, { borderDash: [], borderWidth: 1, borderColor: '#f97316' }),
           flatLine('1Y Low',  e1y.min, labels, { borderDash: [6,4], borderColor: '#f97316' }),
-
           flatLine('6M High', e6m.max, labels, { borderDash: [], borderWidth: 1, borderColor: '#ef4444' }),
           flatLine('6M Low',  e6m.min, labels, { borderDash: [6,4], borderColor: '#ef4444' }),
         ];
-
         const ctx = document.getElementById(`chart-${sym}`).getContext('2d');
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: ds,
-          },
-          options: {
+        new Chart(ctx, { type: 'line', data: { labels, datasets: ds }, options: {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             scales: {
-              x: {
-                ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, color: '#9aa9ba' },
-                grid: { color: 'rgba(255,255,255,0.04)' }
-              },
-              y: {
-                ticks: { color: '#9aa9ba' },
-                grid: { color: 'rgba(255,255,255,0.06)' }
-              }
+              x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, color: '#555' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+              y: { ticks: { color: '#555' }, grid: { color: 'rgba(0,0,0,0.06)' } }
             },
-            plugins: {
-              legend: { display: true, labels: { color: '#d8e1ea' } },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`,
-                }
-              }
-            },
-            elements: {
-              line: { borderColor: closeColor },
-              point: { radius: 0 }
-            }
-          }
-        });
-
-        // 自定义图例（可选）
+            plugins: { legend: { display: true, labels: { color: '#333' } }, tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } } },
+            elements: { line: { borderColor: closeColor }, point: { radius: 0 } }
+          }});
         const legend = document.getElementById(`legend-${sym}`);
         legend.innerHTML = [
           legendColorBox(closeColor, '收盘价'),
@@ -248,36 +180,20 @@ hr.div { border:0; border-top:1px solid var(--border); margin:10px 0; opacity:.7
           legendColorBox('#f97316', '1Y 高/低'),
           legendColorBox('#ef4444', '6M 高/低'),
         ].join('');
-
-        // 概要数值（最新窗口对应的 6 条水平线数值）
         const summary = document.getElementById(`${sym}-summary`);
         summary.innerHTML = `
-          <div class="kpi"><small><i class="dot" style="background:#eab308"></i>3Y High</small><b>${fmt(e3y.max)}</b></div>
-          <div class="kpi"><small><i class="dot" style="background:#eab308"></i>3Y Low</small><b>${fmt(e3y.min)}</b></div>
-          <div class="kpi"><small><i class="dot" style="background:#f97316"></i>1Y High</small><b>${fmt(e1y.max)}</b></div>
-          <div class="kpi"><small><i class="dot" style="background:#f97316"></i>1Y Low</small><b>${fmt(e1y.min)}</b></div>
           <div class="kpi"><small><i class="dot" style="background:#ef4444"></i>6M High</small><b>${fmt(e6m.max)}</b></div>
           <div class="kpi"><small><i class="dot" style="background:#ef4444"></i>6M Low</small><b>${fmt(e6m.min)}</b></div>
+          <div class="kpi"><small><i class="dot" style="background:#f97316"></i>1Y High</small><b>${fmt(e1y.max)}</b></div>
+          <div class="kpi"><small><i class="dot" style="background:#f97316"></i>1Y Low</small><b>${fmt(e1y.min)}</b></div>
+          <div class="kpi"><small><i class="dot" style="background:#eab308"></i>3Y High</small><b>${fmt(e3y.max)}</b></div>
+          <div class="kpi"><small><i class="dot" style="background:#eab308"></i>3Y Low</small><b>${fmt(e3y.min)}</b></div>
         `;
-
       } catch (err) {
         card.innerHTML = `<div class="muted">${sym}：${err.message || err}</div>`;
       }
     }
-
-    (async function init() {
-      for (const s of symbols) await renderSymbol(s);
-    })();
+    (async function init() { for (const s of symbols) await renderSymbol(s); })();
   </script>
-
-  <!--
-  ==== 数据文件示例（data/AAPL.json）====
-  [
-    { "date": "2023-08-07", "open": 179.69, "high": 180.12, "low": 176.0, "close": 178.85 },
-    { "date": "2023-08-08", "open": 179.10, "high": 179.80, "low": 177.50, "close": 179.35 }
-  ]
-  - 建议按日期升序排列（旧→新）。如果无序，脚本会自动排序。
-  - 你也可以只保留需要的字段（例如 open/close），但 high/low 未来可能会用到。
-  -->
 </body>
 </html>
